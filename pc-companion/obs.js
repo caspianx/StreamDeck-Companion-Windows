@@ -92,15 +92,26 @@ export function createObs(cfg, onState, onListChange) {
       const scenes = await obs.call("GetSceneList").catch(() => ({ scenes: [] }));
       const inputs = await obs.call("GetInputList").catch(() => ({ inputs: [] }));
       const cur = await obs.call("GetCurrentProgramScene").catch(() => ({}));
-      let sceneItems = [];
+      const sceneItemsMap = {};
+      const sceneList = scenes.scenes || [];
+      for (const s of sceneList) {
+        const sName = s.sceneName;
+        try {
+          const r = await obs.call("GetSceneItemList", { sceneName: sName });
+          sceneItemsMap[sName] = (r.sceneItems || []).map(x => x.sourceName);
+        } catch {
+          sceneItemsMap[sName] = [];
+        }
+      }
+      let curSceneItems = [];
       if (cur.currentProgramSceneName) {
-        const r = await obs.call("GetSceneItemList", { sceneName: cur.currentProgramSceneName }).catch(() => ({ sceneItems: [] }));
-        sceneItems = r.sceneItems || [];
+        curSceneItems = sceneItemsMap[cur.currentProgramSceneName] || [];
       }
       return {
-        scenes: (scenes.scenes || []).map(s => s.sceneName),
+        scenes: sceneList.map(s => s.sceneName),
         inputs: (inputs.inputs || []).map(i => ({ name: i.inputName, kind: i.inputKind })),
-        sceneItems: sceneItems.map(s => ({ id: s.sceneItemId, source: s.sourceName })),
+        sceneItems: curSceneItems.map((name, idx) => ({ id: idx, source: name })),
+        sceneItemsMap: sceneItemsMap,
         currentScene: cur.currentProgramSceneName || null
       };
     },
