@@ -21,6 +21,3 @@ Firewall pertama kali: `netsh advfirewall firewall add rule name="StreamDeck9137
 
 ## Protokol WS ws://PC:9137
 `obs.setScene {scene}` | `obs.toggleMute {input}` | `obs.toggleSource {scene,source}` | `sound.play {file}` | `obs.list` | `sounds.list` | `deck.buttons` | `sound.state {playing,file}` | `obs.state` · HTTP `GET /status /buttons /sounds /preview` `POST /buttons /upload`
-
-## APK
-APK Android terpisah (tidak di repo ini) — Play Store build tetap di folder `D:\streamdeck\android` lokal (di-ignore git). Gate first-launch APK link ke Releases repo ini.
