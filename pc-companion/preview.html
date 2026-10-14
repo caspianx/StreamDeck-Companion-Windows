@@ -6,6 +6,7 @@ body{background:#1a1c2e;color:#fff;min-height:100vh;padding:8px;display:flex;fle
 .top{display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap}
 .dot{width:10px;height:10px;border-radius:50%;background:#f44336}
 .dot.on{background:#4caf50}
+.dot.warn{background:#ff9800}
 .status{font-size:12px}
 .btn{border:0;border-radius:6px;padding:6px 10px;font-size:11px;cursor:pointer;background:#2962ff;color:#fff}
 .btn.ghost{background:#444}
@@ -18,6 +19,7 @@ body{background:#1a1c2e;color:#fff;min-height:100vh;padding:8px;display:flex;fle
 .card.has-img{position:relative;overflow:hidden}
 .card.has-img img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:12px}
 .card.has-img .label{position:relative;z-index:1;background:rgba(0,0,0,.45);border-radius:6px;padding:2px 4px}
+.card.invalid{outline:2px dashed #ff5252;outline-offset:-2px}
 .foot{font-size:10px;color:#ffab91;min-height:14px}
 .ip-wrap{display:flex;gap:6px;align-items:center;margin-left:auto;flex-wrap:wrap}
 .ip-wrap input{background:#2a2d4a;border:1px solid #444;color:#fff;border-radius:6px;padding:6px 8px;font-size:12px;width:120px}
@@ -155,10 +157,11 @@ function render(){
     const d=document.createElement('div');
     const locked=soundPlaying && b.action==='sound.play';
     const hasImg=!!b.image;
-    d.className='card'+(locked?' disabled':'')+(hasImg?' has-img':''); d.style.background=cssHex(b.colorHex);
-    if(hasImg) d.innerHTML=`<img src="${imageUrl(b.image)}" alt=""><span class="label">${b.label.replace(/</g,"&lt;")}</span>`;
-    else d.innerHTML=`<span class="ic">${EMOJI[b.icon]||"▦"}</span><span>${b.label.replace(/</g,"&lt;")}</span>`;
-    d.title=`${b.icon} · ${b.action} ${JSON.stringify(b.payload)}${locked?' — terkunci':''}${hasImg?' · '+b.image:''}`;
+    const invalid = b.action==='obs.setScene' && b.payload?.scene && scenes.length && !scenes.includes(b.payload.scene);
+    d.className='card'+(locked?' disabled':'')+(hasImg?' has-img':'')+(invalid?' invalid':''); d.style.background=invalid?'#6a1b1a':cssHex(b.colorHex);
+    if(hasImg) d.innerHTML=`<img src="${imageUrl(b.image)}" alt=""><span class="label">${(invalid?'⚠ ':'')+b.label.replace(/</g,"&lt;")}</span>`;
+    else d.innerHTML=`<span class="ic">${invalid?'⚠':(EMOJI[b.icon]||"▦")}</span><span>${b.label.replace(/</g,"&lt;")}</span>`;
+    d.title=`${b.icon} · ${b.action} ${JSON.stringify(b.payload)}${locked?' — terkunci':''}${hasImg?' · '+b.image:''}${invalid?' — scene tidak ada di OBS':''}`;
     let t=null; const sp=()=>t=setTimeout(()=>openEdit(i),600), cp=()=>clearTimeout(t);
     d.addEventListener('mousedown',sp); d.addEventListener('mouseup',cp); d.addEventListener('mouseleave',cp);
     d.addEventListener('touchstart',sp,{passive:true}); d.addEventListener('touchend',cp);
@@ -326,7 +329,12 @@ async function saveObs(){
 function togglePass(){ const i=document.getElementById('obsPass'); i.type=i.type==='password'?'text':'password'; }
 let ws=null;
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',1800)}
-function setState(c,o){ const d=document.getElementById('dot'),s=document.getElementById('status'); d.className='dot'+(o?' on':''); s.textContent=o?'OBS terhubung':c?'Companion OK - OBS off':'Tidak terhubung'; }
+function setState(c,o){
+  const d=document.getElementById('dot'),s=document.getElementById('status');
+  if(o){ d.className='dot on'; s.textContent='OBS terhubung'; }
+  else if(c){ d.className='dot warn'; s.textContent='Companion OK - OBS off'; }
+  else { d.className='dot'; s.textContent='Tidak terhubung'; }
+}
 function hostVal(){return document.getElementById('host').value.trim()||'localhost'}
 function connect(){
   if(ws)try{ws.close()}catch{}

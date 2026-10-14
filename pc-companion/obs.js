@@ -1,5 +1,5 @@
 import OBSWebSocket from "obs-websocket-js";
-export function createObs(cfg, onState) {
+export function createObs(cfg, onState, onListChange) {
   const obs = new OBSWebSocket();
   let currentCfg = { ...cfg };
   let connected = false;
@@ -10,6 +10,24 @@ export function createObs(cfg, onState) {
       connected = true;
       onState?.(true);
       console.log("[OBS] connected", url);
+      try {
+        const r = await obs.call("GetSceneList").catch(() => null);
+        const cur = await obs.call("GetCurrentProgramScene").catch(() => null);
+        if (r || cur) {
+          const inputs = await obs.call("GetInputList").catch(() => ({ inputs: [] }));
+          let sceneItems = [];
+          if (cur?.currentProgramSceneName) {
+            const s = await obs.call("GetSceneItemList", { sceneName: cur.currentProgramSceneName }).catch(() => ({ sceneItems: [] }));
+            sceneItems = (s.sceneItems || []).map(x => ({ id: x.sceneItemId, source: x.sourceName }));
+          }
+          onListChange?.({
+            scenes: (r?.scenes || []).map(s => s.sceneName),
+            inputs: (inputs.inputs || []).map(i => ({ name: i.inputName, kind: i.inputKind })),
+            sceneItems,
+            currentScene: cur?.currentProgramSceneName || null
+          });
+        }
+      } catch {}
     } catch (e) {
       connected = false;
       onState?.(false, e.message);
@@ -18,8 +36,37 @@ export function createObs(cfg, onState) {
   }
   obs.on("ConnectionClosed", () => { connected = false; onState?.(false, "closed"); });
   obs.on("ConnectionError", () => { connected = false; onState?.(false, "error"); });
+  obs.on("SocketClose", () => { connected = false; onState?.(false, "socket close"); });
   connect();
   setInterval(() => { if (!connected) connect(); }, 5000);
+  setInterval(async () => {
+    if (!connected) return;
+    try { await obs.call("GetVersion"); } catch (e) {
+      connected = false; onState?.(false, e?.message || "heartbeat fail");
+      try { await obs.disconnect(); } catch {}
+      console.log("[OBS] heartbeat fail:", e?.message);
+    }
+  }, 5000);
+  async function pushListChange(){
+    try { const r = await obs.call("GetSceneList").then(async r => {
+      const cur = await obs.call("GetCurrentProgramScene").catch(()=>({}));
+      const inputs = await obs.call("GetInputList").catch(()=>({inputs:[]}));
+      let sceneItems=[];
+      if(cur?.currentProgramSceneName){
+        const s=await obs.call("GetSceneItemList",{sceneName:cur.currentProgramSceneName}).catch(()=>({sceneItems:[]}));
+        sceneItems=(s.sceneItems||[]).map(x=>({id:x.sceneItemId,source:x.sourceName}));
+      }
+      return { scenes:(r.scenes||[]).map(s=>s.sceneName), inputs:(inputs.inputs||[]).map(i=>({name:i.inputName,kind:i.inputKind})), sceneItems, currentScene:cur?.currentProgramSceneName||null };
+    }); onListChange?.(r); } catch {}
+  }
+  obs.on("SceneCreated", pushListChange);
+  obs.on("SceneRemoved", pushListChange);
+  obs.on("SceneNameChanged", pushListChange);
+  obs.on("SceneListChanged", pushListChange);
+  obs.on("CurrentProgramSceneChanged", pushListChange);
+  obs.on("InputCreated", pushListChange);
+  obs.on("InputRemoved", pushListChange);
+  obs.on("InputNameChanged", pushListChange);
   return {
     isConnected: () => connected,
     getConfig: () => ({ ...currentCfg }),
