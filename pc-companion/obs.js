@@ -1,11 +1,12 @@
 import OBSWebSocket from "obs-websocket-js";
 export function createObs(cfg, onState) {
   const obs = new OBSWebSocket();
+  let currentCfg = { ...cfg };
   let connected = false;
   async function connect() {
-    const url = `ws://${cfg.host}:${cfg.port}`;
+    const url = `ws://${currentCfg.host}:${currentCfg.port}`;
     try {
-      await obs.connect(url, cfg.password || undefined);
+      await obs.connect(url, currentCfg.password || undefined);
       connected = true;
       onState?.(true);
       console.log("[OBS] connected", url);
@@ -21,6 +22,25 @@ export function createObs(cfg, onState) {
   setInterval(() => { if (!connected) connect(); }, 5000);
   return {
     isConnected: () => connected,
+    getConfig: () => ({ ...currentCfg }),
+    async setConfig(newCfg) {
+      const candidate = { ...currentCfg, ...newCfg };
+      const tmp = new OBSWebSocket();
+      const url = `ws://${candidate.host}:${candidate.port}`;
+      try {
+        await tmp.connect(url, candidate.password || undefined);
+        try { await tmp.disconnect(); } catch {}
+      } catch (e) {
+        throw new Error(e.message || "obs connect fail");
+      }
+      try { await obs.disconnect(); } catch {}
+      currentCfg = candidate;
+      connected = false;
+      onState?.(false, "reconfig");
+      await connect();
+      if (!connected) throw new Error("reconnect failed");
+      return { ...currentCfg };
+    },
     async list() {
       const scenes = await obs.call("GetSceneList").catch(() => ({ scenes: [] }));
       const inputs = await obs.call("GetInputList").catch(() => ({ inputs: [] }));

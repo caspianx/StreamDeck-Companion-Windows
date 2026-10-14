@@ -41,15 +41,25 @@ body{background:#1a1c2e;color:#fff;min-height:100vh;padding:8px;display:flex;fle
 <div class="top">
   <div style="display:flex;align-items:center;gap:6px"><div id="dot" class="dot"></div><span id="status" class="status">Tidak terhubung</span></div>
   <div class="ip-wrap">
-    <input id="host" value="localhost" placeholder="192.168.x.x">
+    <input id="host" value="localhost" placeholder="Companion 192.168.x.x">
     <button class="btn" onclick="reconnect()">IP</button>
     <button class="btn" onclick="refresh()">Refresh</button>
+    <button class="btn ghost" onclick="document.getElementById('obsCard').scrollIntoView({behavior:'smooth'})">OBS⚙</button>
     <button class="btn ghost" onclick="addBtn()">+ Tambah</button>
     <button class="btn ghost" onclick="resetDeck()">Reset</button>
   </div>
 </div>
 <div class="viewport" id="vp"><div id="grid" class="grid"></div></div>
 <div class="pager" id="pager"></div>
+<div class="card" id="obsCard" style="flex-direction:row;aspect-ratio:auto;padding:10px;gap:8px;flex-wrap:wrap;border:1px solid #444;margin-bottom:8px">
+  <span style="font-size:11px;color:#aaa">OBS WS</span>
+  <input id="obsHost" placeholder="localhost" style="flex:1;min-width:90px;background:#1a1c2e;border:1px solid #444;color:#fff;border-radius:6px;padding:6px;font-size:12px">
+  <input id="obsPort" placeholder="4455" style="width:70px;background:#1a1c2e;border:1px solid #444;color:#fff;border-radius:6px;padding:6px;font-size:12px">
+  <input id="obsPass" type="password" placeholder="password" style="flex:1;min-width:90px;background:#1a1c2e;border:1px solid #444;color:#fff;border-radius:6px;padding:6px;font-size:12px">
+  <button class="btn" onclick="togglePass()" style="padding:6px 8px">👁</button>
+  <button class="btn" onclick="saveObs()">Simpan OBS</button>
+  <span id="obsStat" class="hint"></span>
+</div>
 <div id="foot" class="foot">Swipe kiri/kanan ganti halaman · Tahan/klik-kanan/dblclick edit · + Tambah sampai 30</div>
 <div id="toast"></div>
 <div id="overlay" onclick="if(event.target===this)closeEdit()">
@@ -250,6 +260,31 @@ function addBtn(){
   curPage=pageCount()-1; render(); postButtons(); openEdit(buttons.length-1);
 }
 async function resetDeck(){ if(!confirm('Reset ke 15 default?')) return; buttons=JSON.parse(JSON.stringify(DEFAULT)); render(); await postButtons(); toast('Reset default'); }
+async function fetchObsConfig(){
+  try{
+    const r=await fetch(`http://${hostVal()}:9137/obs-config`);
+    if(r.ok){
+      const j=await r.json();
+      document.getElementById('obsHost').value=j.host||'localhost';
+      document.getElementById('obsPort').value=j.port||4455;
+      document.getElementById('obsStat').textContent=j.hasPassword?'● ada password':'○ tanpa password';
+    }
+  }catch{}
+}
+async function saveObs(){
+  const h=document.getElementById('obsHost').value.trim()||'localhost';
+  const p=Number(document.getElementById('obsPort').value)||4455;
+  const pw=document.getElementById('obsPass').value;
+  const st=document.getElementById('obsStat'); st.textContent='Menyimpan...';
+  try{
+    const r=await fetch(`http://${hostVal()}:9137/obs-config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({host:h,port:p,password:pw})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||'gagal');
+    st.textContent='OK '+j.host+':'+j.port+(j.hasPassword?' ●':' ○')+' — '+(j.obs?.connected?'terhubung':'cek OBS');
+    toast('OBS disimpan');
+  }catch(e){ st.textContent='Gagal: '+e.message; toast('OBS gagal '+e.message); }
+}
+function togglePass(){ const i=document.getElementById('obsPass'); i.type=i.type==='password'?'text':'password'; }
 let ws=null;
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',1800)}
 function setState(c,o){ const d=document.getElementById('dot'),s=document.getElementById('status'); d.className='dot'+(o?' on':''); s.textContent=o?'OBS terhubung':c?'Companion OK - OBS off':'Tidak terhubung'; }
@@ -257,12 +292,13 @@ function hostVal(){return document.getElementById('host').value.trim()||'localho
 function connect(){
   if(ws)try{ws.close()}catch{}
   ws=new WebSocket('ws://'+hostVal()+':9137');
-  ws.onopen=()=>{setState(true,false);toast('WS terhubung'); ws.send(JSON.stringify({action:'obs.list'})); ws.send(JSON.stringify({action:'sounds.list'}));};
+  ws.onopen=()=>{setState(true,false);toast('WS terhubung'); ws.send(JSON.stringify({action:'obs.list'})); ws.send(JSON.stringify({action:'sounds.list'})); fetchObsConfig();};
   ws.onclose=()=>setState(false,false); ws.onerror=()=>setState(false,false);
   ws.onmessage=e=>{
     try{
       const j=JSON.parse(e.data);
       if(j.type==='obs.state')setState(true,!!j.payload?.connected);
+      else if(j.type==='obs.config'){ document.getElementById('obsHost').value=j.payload.host; document.getElementById('obsPort').value=j.payload.port; document.getElementById('obsStat').textContent=j.payload.hasPassword?'●':'○'; }
       else if(j.type==='obs.list'){ scenes=j.payload?.scenes||[]; inputs=(j.payload?.inputs||[]).map(x=>x.name||x); }
       else if(j.type==='sounds.list'){ const p=j.payload; sounds=Array.isArray(p)?p.map(x=>x.file||x):[]; }
       else if(j.type==='sound.state'){ soundPlaying=!!j.payload?.playing; soundFile=j.payload?.file||null; updateSoundLock(); }
@@ -273,7 +309,7 @@ function connect(){
   };
 }
 function send(a,p){ if(!ws||ws.readyState!==1) return toast('WS belum konek'); if(soundPlaying && a==='sound.play'){ toast('Tunggu — sedang memutar '+ (soundFile||'')); return; } ws.send(JSON.stringify({action:a,payload:p})); }
-function reconnect(){ fetchButtons(); connect(); }
-function refresh(){ fetchButtons(); if(ws&&ws.readyState===1){ ws.send(JSON.stringify({action:'obs.list'})); ws.send(JSON.stringify({action:'sounds.list'})); toast('Refresh'); } }
-fetchButtons(); connect();
+function reconnect(){ fetchButtons(); fetchObsConfig(); connect(); }
+function refresh(){ fetchButtons(); fetchObsConfig(); if(ws&&ws.readyState===1){ ws.send(JSON.stringify({action:'obs.list'})); ws.send(JSON.stringify({action:'sounds.list'})); toast('Refresh'); } }
+fetchButtons(); fetchObsConfig(); connect();
 </script>
