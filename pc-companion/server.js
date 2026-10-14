@@ -6,7 +6,8 @@ import { WebSocketServer } from "ws";
 import { createObs } from "./obs.js";
 import { createSound } from "./sound.js";
 
-const cfg = JSON.parse(fs.readFileSync(new URL("./config.json", import.meta.url)));
+const CONFIG_PATH = new URL("./config.json", import.meta.url);
+const cfg = JSON.parse(fs.readFileSync(CONFIG_PATH));
 const sound = createSound(cfg);
 let obsState = { connected: false, error: null };
 const DEFAULT_BUTTONS = [
@@ -29,6 +30,8 @@ const DEFAULT_BUTTONS = [
 const BTN_FILE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "buttons.json");
 function loadButtons(){ try{ if(fs.existsSync(BTN_FILE)) return JSON.parse(fs.readFileSync(BTN_FILE,"utf8")); }catch{} return DEFAULT_BUTTONS; }
 function saveButtons(b){ fs.writeFileSync(BTN_FILE, JSON.stringify(b,null,2)); }
+function obsSafe(){ return { host: cfg.obs.host, port: cfg.obs.port, hasPassword: !!cfg.obs.password }; }
+function saveObsConfig(next){ cfg.obs = { ...cfg.obs, ...next }; fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2)); }
 const obs = createObs(cfg.obs, (ok, err) => {
   obsState = { connected: ok, error: err || null };
   broadcast({ type: "obs.state", payload: obsState });
@@ -39,6 +42,50 @@ const server = http.createServer((req, res) => {
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-filename");
   if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
+  if (req.url === "/obs-config" && req.method === "GET") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(obsSafe()));
+    return;
+  }
+  if (req.url === "/obs-config" && req.method === "POST") {
+    let body = "";
+    req.on("data", c => body += c);
+    req.on("end", async () => {
+      try {
+        const j = JSON.parse(body || "{}");
+        const next = {};
+        if (j.host !== undefined) {
+          const h = String(j.host).trim();
+          if (!h || h.length > 253) throw new Error("bad host");
+          next.host = h;
+        }
+        if (j.port !== undefined) {
+          const p = Number(j.port);
+          if (!Number.isInteger(p) || p < 1 || p > 65535) throw new Error("bad port");
+          next.port = p;
+        }
+        if (j.password !== undefined) {
+          const pw = String(j.password);
+          if (pw.length > 64) throw new Error("password 0..64");
+          next.password = pw;
+        }
+        if (Object.keys(next).length === 0) throw new Error("empty");
+        const before = { ...cfg.obs };
+        try {
+          await obs.setConfig(next);
+          saveObsConfig(next);
+          broadcast({ type: "obs.config", payload: obsSafe() });
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: true, ...obsSafe(), obs: obsState }));
+        } catch (e) {
+          try { await obs.setConfig(before); } catch {}
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: e.message || "obs connect fail" }));
+        }
+      } catch (e) { res.writeHead(400, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
   if (req.url === "/buttons" && req.method === "GET") {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify(loadButtons()));
@@ -124,6 +171,7 @@ function broadcast(obj) {
 }
 wss.on("connection", ws => {
   ws.send(JSON.stringify({ type: "obs.state", payload: obsState }));
+  ws.send(JSON.stringify({ type: "obs.config", payload: obsSafe() }));
   ws.send(JSON.stringify({ type: "sounds.list", payload: sound.list() }));
   ws.send(JSON.stringify({ type: "deck.buttons", payload: loadButtons() }));
   ws.send(JSON.stringify({ type: "sound.state", payload: { playing: sound.isPlaying(), file: sound.curFile() } }));
