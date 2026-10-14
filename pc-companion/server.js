@@ -9,6 +9,19 @@ import { createSound } from "./sound.js";
 const CONFIG_PATH = new URL("./config.json", import.meta.url);
 const cfg = JSON.parse(fs.readFileSync(CONFIG_PATH));
 const sound = createSound(cfg);
+const IMAGES_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "images");
+if (!fs.existsSync(IMAGES_DIR)) fs.mkdirSync(IMAGES_DIR, { recursive: true });
+function listImages(){
+  return fs.readdirSync(IMAGES_DIR)
+    .filter(f => /\.(png|jpe?g|webp)$/i.test(f))
+    .map(f => ({ file: f, path: path.join(IMAGES_DIR, f) }));
+}
+function imageContentType(f){
+  const e = path.extname(f).toLowerCase();
+  if (e === ".png") return "image/png";
+  if (e === ".webp") return "image/webp";
+  return "image/jpeg";
+}
 let obsState = { connected: false, error: null };
 const DEFAULT_BUTTONS = [
   { id:0,label:"SCENE\nMAIN",colorHex:0xFF1A1C2E,icon:"person",action:"obs.setScene",payload:{scene:"SCENE MAIN"} },
@@ -42,6 +55,38 @@ const server = http.createServer((req, res) => {
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-filename");
   if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
+  if (req.url === "/images" && req.method === "GET") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(listImages()));
+    return;
+  }
+  if (req.url.startsWith("/image/") && req.method === "GET") {
+    const name = decodeURIComponent(req.url.slice(7).split("?")[0].split("/")[0] || "");
+    const safe = path.basename(name);
+    const p = path.join(IMAGES_DIR, safe);
+    if (!fs.existsSync(p) || !/\.(png|jpe?g|webp)$/i.test(safe)) { res.writeHead(404); res.end("not found"); return; }
+    res.writeHead(200, { "Content-Type": imageContentType(safe), "Cache-Control": "public, max-age=86400" });
+    fs.createReadStream(p).pipe(res);
+    return;
+  }
+  if (req.url === "/image-upload" && req.method === "POST") {
+    let data = Buffer.alloc(0);
+    let tooLarge = false;
+    req.on("data", c => { if (tooLarge) return; if (data.length + c.length > 2 * 1024 * 1024) { tooLarge = true; return; } data = Buffer.concat([data, c]); });
+    req.on("end", () => {
+      if (tooLarge) { res.writeHead(413, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "image >2MB" })); return; }
+      const raw = req.headers["x-filename"] || `img-${Date.now()}.png`;
+      let base = path.basename(String(raw));
+      base = base.replace(/[^a-zA-Z0-9._-]/g, "_");
+      if (!/\.(png|jpe?g|webp)$/i.test(base)) base += ".png";
+      const p = path.join(IMAGES_DIR, base);
+      fs.writeFileSync(p, data);
+      broadcast({ type: "images.list", payload: listImages() });
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true, file: base }));
+    });
+    return;
+  }
   if (req.url === "/obs-config" && req.method === "GET") {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify(obsSafe()));
@@ -111,6 +156,10 @@ const server = http.createServer((req, res) => {
           if (!icons.has(x.icon)) throw new Error("bad icon " + x.icon);
           if (!actions.has(x.action)) throw new Error("bad action");
           if (typeof x.payload !== "object" || x.payload === null) throw new Error("bad payload");
+          if (x.image != null) {
+            if (typeof x.image !== "string" || !/\.(png|jpe?g|webp)$/i.test(x.image)) throw new Error("bad image");
+            x.image = path.basename(x.image);
+          } else x.image = null;
         }
         saveButtons(b);
         broadcast({ type: "deck.buttons", payload: b });
@@ -157,11 +206,11 @@ const server = http.createServer((req, res) => {
   }
   if (req.url === "/" && req.method === "GET") {
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-    res.end('<a href="/preview">preview 5x3</a> · <a href="/status">/status</a> · <a href="/sounds">/sounds</a> · <a href="/buttons">/buttons</a>');
+    res.end('<a href="/preview">preview 5x3</a> · <a href="/status">/status</a> · <a href="/sounds">/sounds</a> · <a href="/images">/images</a> · <a href="/buttons">/buttons</a>');
     return;
   }
   res.writeHead(200, { "Content-Type": "text/plain" });
-  res.end("streamdeck companion ok. WS ws://IP:9137  GET /preview  GET /buttons  POST /buttons  GET /sounds  POST /upload (x-filename header)");
+  res.end("streamdeck companion ok. WS ws://IP:9137  GET /preview  GET /buttons  POST /buttons  GET /sounds  POST /upload  GET /images  POST /image-upload");
 });
 
 const wss = new WebSocketServer({ server });
@@ -173,6 +222,7 @@ wss.on("connection", ws => {
   ws.send(JSON.stringify({ type: "obs.state", payload: obsState }));
   ws.send(JSON.stringify({ type: "obs.config", payload: obsSafe() }));
   ws.send(JSON.stringify({ type: "sounds.list", payload: sound.list() }));
+  ws.send(JSON.stringify({ type: "images.list", payload: listImages() }));
   ws.send(JSON.stringify({ type: "deck.buttons", payload: loadButtons() }));
   ws.send(JSON.stringify({ type: "sound.state", payload: { playing: sound.isPlaying(), file: sound.curFile() } }));
   ws.on("message", async raw => {

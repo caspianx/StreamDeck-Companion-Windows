@@ -15,6 +15,9 @@ body{background:#1a1c2e;color:#fff;min-height:100vh;padding:8px;display:flex;fle
 .card:active{transform:scale(.97)}
 .card .ic{font-size:18px;line-height:1}
 .card.disabled{opacity:.45;pointer-events:none;filter:grayscale(.2)}
+.card.has-img{position:relative;overflow:hidden}
+.card.has-img img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:12px}
+.card.has-img .label{position:relative;z-index:1;background:rgba(0,0,0,.45);border-radius:6px;padding:2px 4px}
 .foot{font-size:10px;color:#ffab91;min-height:14px}
 .ip-wrap{display:flex;gap:6px;align-items:center;margin-left:auto;flex-wrap:wrap}
 .ip-wrap input{background:#2a2d4a;border:1px solid #444;color:#fff;border-radius:6px;padding:6px 8px;font-size:12px;width:120px}
@@ -31,12 +34,15 @@ body{background:#1a1c2e;color:#fff;min-height:100vh;padding:8px;display:flex;fle
 .row{display:flex;gap:8px;margin-top:12px}
 .row button{flex:1}
 .hint{font-size:10px;color:#888;margin-top:4px}
-.pager{display:flex;justify-content:center;align-items:center;gap:8px;margin:6px 0}
+.pager{display:none}
 .dotp{width:8px;height:8px;border-radius:50%;background:#444;cursor:pointer}
 .dotp.on{background:#fff}
 .pbtn{border:0;background:#2a2d4a;color:#fff;border-radius:6px;padding:4px 10px;font-size:11px}
 .pbtn:disabled{opacity:.4}
-.viewport{overflow:hidden;touch-action:pan-y}
+.viewport{flex:1;display:flex;overflow:hidden;touch-action:pan-y;min-height:0}
+.viewport .grid{flex:1;height:100%;grid-template-rows:repeat(5,1fr);gap:clamp(4px,1vw,8px)}
+.viewport .card{min-height:0;aspect-ratio:auto}
+body{height:100dvh;overflow:hidden;padding-bottom:env(safe-area-inset-bottom)}
 </style>
 <div class="top">
   <div style="display:flex;align-items:center;gap:6px"><div id="dot" class="dot"></div><span id="status" class="status">Tidak terhubung</span></div>
@@ -69,8 +75,9 @@ body{background:#1a1c2e;color:#fff;min-height:100vh;padding:8px;display:flex;fle
     <label>Warna <input id="eColor" placeholder="#2962FF atau 0xFF..."></label>
     <div id="chips" class="chips"></div>
     <div class="hint">Pilih chip atau ketik hex (#RRGGBB / #AARRGGBB)</div>
-    <label>Icon <select id="eIcon"></select></label>
-    <label>Fungsi (action) <select id="eAction" onchange="onActionChange()"><option>obs.setScene</option><option>obs.toggleMute</option><option>obs.toggleSource</option><option>sound.play</option></select></label>
+     <label>Icon <select id="eIcon"></select></label>
+     <div style="margin-top:6px"><label>Gambar tombol (opsional) — menimpa warna/icon</label><div style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="file" id="eImagePick" accept=".png,.jpg,.jpeg,.webp,image/*" style="flex:1;font-size:11px"><button class="btn" onclick="doImageUpload()" id="eImageBtn">Upload</button><button class="btn ghost" onclick="clearImage()">Hapus</button></div><img id="eImagePrev" style="display:none;width:80px;height:80px;object-fit:cover;border-radius:8px;margin-top:6px;border:1px solid #444"><div id="eImageStat" class="hint"></div></div>
+     <label>Fungsi (action) <select id="eAction" onchange="onActionChange()"><option>obs.setScene</option><option>obs.toggleMute</option><option>obs.toggleSource</option><option>sound.play</option></select></label>
     <div id="fScene"><label>Scene <select id="eScene"></select></label></div>
     <div id="fInput"><label>Input Mic <select id="eInput"></select></label></div>
     <div id="fSource"><label>Source <select id="eSource"></select></label></div>
@@ -101,9 +108,11 @@ const DEFAULT=[
 ];
 const PAGE=15;
 let buttons=JSON.parse(JSON.stringify(DEFAULT));
-let scenes=[],inputs=[],sounds=[],editIdx=null;
+let scenes=[],inputs=[],sounds=[],images=[],editIdx=null;
 let soundPlaying=false, soundFile=null;
 let curPage=0;
+let curImage=null;
+function imageUrl(f){ return `http://${hostVal()}:9137/image/${encodeURIComponent(f)}`; }
 const grid=document.getElementById('grid');
 const vp=document.getElementById('vp');
 function pageCount(){ return Math.max(1, Math.ceil(buttons.length/PAGE)); }
@@ -145,9 +154,11 @@ function render(){
     const i=curPage*PAGE+li;
     const d=document.createElement('div');
     const locked=soundPlaying && b.action==='sound.play';
-    d.className='card'+(locked?' disabled':''); d.style.background=cssHex(b.colorHex);
-    d.innerHTML=`<span class="ic">${EMOJI[b.icon]||"▦"}</span><span>${b.label.replace(/</g,"&lt;")}</span>`;
-    d.title=`${b.icon} · ${b.action} ${JSON.stringify(b.payload)}${locked?' — terkunci':''}`;
+    const hasImg=!!b.image;
+    d.className='card'+(locked?' disabled':'')+(hasImg?' has-img':''); d.style.background=cssHex(b.colorHex);
+    if(hasImg) d.innerHTML=`<img src="${imageUrl(b.image)}" alt=""><span class="label">${b.label.replace(/</g,"&lt;")}</span>`;
+    else d.innerHTML=`<span class="ic">${EMOJI[b.icon]||"▦"}</span><span>${b.label.replace(/</g,"&lt;")}</span>`;
+    d.title=`${b.icon} · ${b.action} ${JSON.stringify(b.payload)}${locked?' — terkunci':''}${hasImg?' · '+b.image:''}`;
     let t=null; const sp=()=>t=setTimeout(()=>openEdit(i),600), cp=()=>clearTimeout(t);
     d.addEventListener('mousedown',sp); d.addEventListener('mouseup',cp); d.addEventListener('mouseleave',cp);
     d.addEventListener('touchstart',sp,{passive:true}); d.addEventListener('touchend',cp);
@@ -160,6 +171,31 @@ function render(){
   renderPager();
   updateSoundLock();
 }
+function showImagePrev(){
+  const img=document.getElementById('eImagePrev');
+  const stat=document.getElementById('eImageStat');
+  if(curImage){ img.src=imageUrl(curImage); img.style.display='block'; stat.textContent=curImage; }
+  else { img.style.display='none'; stat.textContent='Tanpa gambar — pakai warna/icon'; }
+}
+async function fetchImages(){
+  try{ const r=await fetch(`http://${hostVal()}:9137/images`); if(r.ok) images= (await r.json()).map(x=>x.file); }catch{}
+}
+async function doImageUpload(){
+  const inp=document.getElementById('eImagePick'); const f=inp.files&&inp.files[0]; if(!f) return toast('Pilih gambar dulu');
+  if(!/\.(png|jpe?g|webp)$/i.test(f.name)) return toast('Butuh png/jpg/webp');
+  if(f.size>2*1024*1024) return toast('Gambar >2MB');
+  const btn=document.getElementById('eImageBtn'); btn.disabled=true; document.getElementById('eImageStat').textContent='Upload '+f.name+'...';
+  try{
+    const r=await fetch(`http://${hostVal()}:9137/image-upload`,{method:'POST',headers:{'x-filename':f.name},body:f});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||'upload gagal');
+    curImage=j.file||f.name;
+    if(!images.includes(curImage)) images.push(curImage);
+    showImagePrev(); toast('Gambar OK '+curImage);
+  }catch(e){ document.getElementById('eImageStat').textContent='Gagal: '+e.message; toast('Gambar gagal '+e.message); }
+  finally{ btn.disabled=false; }
+}
+function clearImage(){ curImage=null; showImagePrev(); }
 function buildChips(cur){
   const c=document.getElementById('chips'); c.innerHTML='';
   PRESET.forEach(h=>{
@@ -200,11 +236,14 @@ function onActionChange(){
 }
 function openEdit(i){
   editIdx=i; const b=buttons[i];
+  curImage=b.image||null;
   document.getElementById('dlgTitle').textContent='Edit tombol '+(i+1)+' / '+buttons.length;
   document.getElementById('eLabel').value=b.label;
   document.getElementById('eColor').value=cssHex(b.colorHex);
   buildChips(b.colorHex);
   fillIcon(b.icon);
+  document.getElementById('eImagePick').value='';
+  showImagePrev();
   document.getElementById('eAction').value=b.action;
   fillSelect('eScene',scenes,b.payload.scene||scenes[0]||'SCENE MAIN');
   fillSelect('eInput',inputs,b.payload.input||inputs[0]||'Mic/Aux');
@@ -244,7 +283,7 @@ function saveEdit(){
   else if(a==='obs.toggleMute') payload.input=document.getElementById('eInput').value;
   else if(a==='obs.toggleSource'){ payload.scene=document.getElementById('eScene').value; payload.source=document.getElementById('eSource').value; }
   else if(a==='sound.play') payload.file=document.getElementById('eFile').value;
-  buttons[editIdx]={...buttons[editIdx],label,colorHex:hex,icon,action:a,payload};
+  buttons[editIdx]={...buttons[editIdx],label,colorHex:hex,icon,action:a,payload,image:curImage};
   render(); postButtons(); closeEdit();
 }
 function deleteBtn(){
@@ -301,6 +340,7 @@ function connect(){
       else if(j.type==='obs.config'){ document.getElementById('obsHost').value=j.payload.host; document.getElementById('obsPort').value=j.payload.port; document.getElementById('obsStat').textContent=j.payload.hasPassword?'●':'○'; }
       else if(j.type==='obs.list'){ scenes=j.payload?.scenes||[]; inputs=(j.payload?.inputs||[]).map(x=>x.name||x); }
       else if(j.type==='sounds.list'){ const p=j.payload; sounds=Array.isArray(p)?p.map(x=>x.file||x):[]; }
+      else if(j.type==='images.list'){ images=(Array.isArray(j.payload)?j.payload:[]).map(x=>x.file||x); }
       else if(j.type==='sound.state'){ soundPlaying=!!j.payload?.playing; soundFile=j.payload?.file||null; updateSoundLock(); }
       else if(j.type==='deck.buttons'&&Array.isArray(j.payload)&&j.payload.length>=1){ buttons=j.payload; render(); updateSoundLock(); toast('Sync dari server'); }
       else if(j.type==='ok')toast('OK '+j.action);
@@ -309,7 +349,7 @@ function connect(){
   };
 }
 function send(a,p){ if(!ws||ws.readyState!==1) return toast('WS belum konek'); if(soundPlaying && a==='sound.play'){ toast('Tunggu — sedang memutar '+ (soundFile||'')); return; } ws.send(JSON.stringify({action:a,payload:p})); }
-function reconnect(){ fetchButtons(); fetchObsConfig(); connect(); }
-function refresh(){ fetchButtons(); fetchObsConfig(); if(ws&&ws.readyState===1){ ws.send(JSON.stringify({action:'obs.list'})); ws.send(JSON.stringify({action:'sounds.list'})); toast('Refresh'); } }
-fetchButtons(); fetchObsConfig(); connect();
+function reconnect(){ fetchButtons(); fetchObsConfig(); fetchImages(); connect(); }
+function refresh(){ fetchButtons(); fetchObsConfig(); fetchImages(); if(ws&&ws.readyState===1){ ws.send(JSON.stringify({action:'obs.list'})); ws.send(JSON.stringify({action:'sounds.list'})); toast('Refresh'); } }
+fetchButtons(); fetchObsConfig(); fetchImages(); connect();
 </script>
