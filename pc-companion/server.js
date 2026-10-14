@@ -45,9 +45,13 @@ function loadButtons(){ try{ if(fs.existsSync(BTN_FILE)) return JSON.parse(fs.re
 function saveButtons(b){ fs.writeFileSync(BTN_FILE, JSON.stringify(b,null,2)); }
 function obsSafe(){ return { host: cfg.obs.host, port: cfg.obs.port, hasPassword: !!cfg.obs.password }; }
 function saveObsConfig(next){ cfg.obs = { ...cfg.obs, ...next }; fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2)); }
+let lastObsList = null;
 const obs = createObs(cfg.obs, (ok, err) => {
   obsState = { connected: ok, error: err || null };
   broadcast({ type: "obs.state", payload: obsState });
+}, (list) => {
+  lastObsList = list;
+  broadcast({ type: "obs.list", payload: list });
 });
 
 const server = http.createServer((req, res) => {
@@ -218,13 +222,17 @@ function broadcast(obj) {
   const s = JSON.stringify(obj);
   for (const c of wss.clients) if (c.readyState === 1) c.send(s);
 }
-wss.on("connection", ws => {
+wss.on("connection", async ws => {
   ws.send(JSON.stringify({ type: "obs.state", payload: obsState }));
   ws.send(JSON.stringify({ type: "obs.config", payload: obsSafe() }));
   ws.send(JSON.stringify({ type: "sounds.list", payload: sound.list() }));
   ws.send(JSON.stringify({ type: "images.list", payload: listImages() }));
   ws.send(JSON.stringify({ type: "deck.buttons", payload: loadButtons() }));
   ws.send(JSON.stringify({ type: "sound.state", payload: { playing: sound.isPlaying(), file: sound.curFile() } }));
+  try {
+    if (lastObsList) ws.send(JSON.stringify({ type: "obs.list", payload: lastObsList }));
+    else if (obs.isConnected()) { const r = await obs.list(); lastObsList = r; ws.send(JSON.stringify({ type: "obs.list", payload: r })); }
+  } catch {}
   ws.on("message", async raw => {
     let msg; try { msg = JSON.parse(raw); } catch { return; }
     const { action, payload } = msg;
