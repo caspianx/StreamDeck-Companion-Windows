@@ -1,0 +1,13 @@
+{
+  "name": "streamdeck-companion",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "obs-websocket-js": "^5.0.6",
+    "sound-play": "^1.1.0",
+    "ws": "^8.18.0"
+  }
+}

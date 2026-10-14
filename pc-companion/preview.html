@@ -1,0 +1,279 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>StreamDeck 5×3</title>
+<style>
+*{box-sizing:border-box;margin:0;font-family:system-ui,sans-serif}
+body{background:#1a1c2e;color:#fff;min-height:100vh;padding:8px;display:flex;flex-direction:column;max-width:480px;margin:0 auto}
+.top{display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap}
+.dot{width:10px;height:10px;border-radius:50%;background:#f44336}
+.dot.on{background:#4caf50}
+.status{font-size:12px}
+.btn{border:0;border-radius:6px;padding:6px 10px;font-size:11px;cursor:pointer;background:#2962ff;color:#fff}
+.btn.ghost{background:#444}
+.btn:active{opacity:.8}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;flex:1;margin:8px 0;align-content:start}
+.card{aspect-ratio:1;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-weight:700;font-size:13px;line-height:14px;padding:6px;cursor:pointer;user-select:none;white-space:pre-line;transition:transform .08s;gap:4px}
+.card:active{transform:scale(.97)}
+.card .ic{font-size:18px;line-height:1}
+.card.disabled{opacity:.45;pointer-events:none;filter:grayscale(.2)}
+.foot{font-size:10px;color:#ffab91;min-height:14px}
+.ip-wrap{display:flex;gap:6px;align-items:center;margin-left:auto;flex-wrap:wrap}
+.ip-wrap input{background:#2a2d4a;border:1px solid #444;color:#fff;border-radius:6px;padding:6px 8px;font-size:12px;width:120px}
+#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:8px 14px;border-radius:8px;font-size:12px;display:none;z-index:9}
+#overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);align-items:center;justify-content:center;padding:16px;z-index:10}
+#overlay.open{display:flex}
+.dlg{background:#242640;color:#fff;border-radius:12px;padding:16px;width:100%;max-width:380px;max-height:90vh;overflow:auto}
+.dlg h3{margin-bottom:10px;font-size:14px}
+.dlg label{font-size:11px;color:#aaa;display:block;margin-top:8px}
+.dlg input,.dlg select{width:100%;margin-top:4px;background:#1a1c2e;border:1px solid #444;color:#fff;border-radius:6px;padding:8px;font-size:13px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.chip{width:28px;height:28px;border-radius:50%;border:2px solid #fff3;cursor:pointer}
+.chip.on{border-color:#fff;box-shadow:0 0 0 2px #fff}
+.row{display:flex;gap:8px;margin-top:12px}
+.row button{flex:1}
+.hint{font-size:10px;color:#888;margin-top:4px}
+.pager{display:flex;justify-content:center;align-items:center;gap:8px;margin:6px 0}
+.dotp{width:8px;height:8px;border-radius:50%;background:#444;cursor:pointer}
+.dotp.on{background:#fff}
+.pbtn{border:0;background:#2a2d4a;color:#fff;border-radius:6px;padding:4px 10px;font-size:11px}
+.pbtn:disabled{opacity:.4}
+.viewport{overflow:hidden;touch-action:pan-y}
+</style>
+<div class="top">
+  <div style="display:flex;align-items:center;gap:6px"><div id="dot" class="dot"></div><span id="status" class="status">Tidak terhubung</span></div>
+  <div class="ip-wrap">
+    <input id="host" value="localhost" placeholder="192.168.x.x">
+    <button class="btn" onclick="reconnect()">IP</button>
+    <button class="btn" onclick="refresh()">Refresh</button>
+    <button class="btn ghost" onclick="addBtn()">+ Tambah</button>
+    <button class="btn ghost" onclick="resetDeck()">Reset</button>
+  </div>
+</div>
+<div class="viewport" id="vp"><div id="grid" class="grid"></div></div>
+<div class="pager" id="pager"></div>
+<div id="foot" class="foot">Swipe kiri/kanan ganti halaman · Tahan/klik-kanan/dblclick edit · + Tambah sampai 30</div>
+<div id="toast"></div>
+<div id="overlay" onclick="if(event.target===this)closeEdit()">
+  <div class="dlg">
+    <h3 id="dlgTitle">Edit tombol</h3>
+    <label>Nama (label) <input id="eLabel" maxlength="30" placeholder="SCENE MAIN"></label>
+    <label>Warna <input id="eColor" placeholder="#2962FF atau 0xFF..."></label>
+    <div id="chips" class="chips"></div>
+    <div class="hint">Pilih chip atau ketik hex (#RRGGBB / #AARRGGBB)</div>
+    <label>Icon <select id="eIcon"></select></label>
+    <label>Fungsi (action) <select id="eAction" onchange="onActionChange()"><option>obs.setScene</option><option>obs.toggleMute</option><option>obs.toggleSource</option><option>sound.play</option></select></label>
+    <div id="fScene"><label>Scene <select id="eScene"></select></label></div>
+    <div id="fInput"><label>Input Mic <select id="eInput"></select></label></div>
+    <div id="fSource"><label>Source <select id="eSource"></select></label></div>
+    <div id="fFile"><label>File suara <select id="eFile"></select></label><div style="display:flex;gap:6px;margin-top:6px;align-items:center"><input type="file" id="ePick" accept=".mp3,.wav,.ogg,.m4a,audio/*" style="flex:1;font-size:11px"><button class="btn" onclick="doUpload()" id="upBtn">Upload & pakai</button></div><div id="upStat" class="hint"></div></div>
+    <div class="row"><button class="btn ghost" onclick="deleteBtn()">Hapus</button><button class="btn ghost" onclick="closeEdit()">Batal</button><button class="btn" onclick="saveEdit()">Simpan</button></div>
+  </div>
+</div>
+<script>
+const ICONS=["grid","window","person","mic_off","cam_off","play","mic","volume","light","star"];
+const EMOJI={grid:"▦",window:"⬜",person:"👤",mic_off:"🎤✕",cam_off:"📷✕",play:"▶",mic:"🎤",volume:"🔊",light:"💡",star:"★"};
+const PRESET=["#1a1c2e","#e53935","#1de9b6","#2962ff","#ff8f00","#6a1b9a"];
+const DEFAULT=[
+ {id:0,label:"SCENE\nMAIN",colorHex:0xFF1A1C2E,icon:"person",action:"obs.setScene",payload:{scene:"SCENE MAIN"}},
+ {id:1,label:"SCENE\nEND",colorHex:0xFFE53935,icon:"window",action:"obs.setScene",payload:{scene:"SCENE END"}},
+ {id:2,label:"SCENE\nSEDIH",colorHex:0xFFE53935,icon:"window",action:"obs.setScene",payload:{scene:"SCENE SEDIH"}},
+ {id:3,label:"MUTE\nMIC",colorHex:0xFFE53935,icon:"mic_off",action:"obs.toggleMute",payload:{input:"Mic/Aux"}},
+ {id:4,label:"Webcam",colorHex:0xFFE53935,icon:"cam_off",action:"obs.toggleSource",payload:{scene:"SCENE MAIN",source:"Webcam"}},
+ {id:5,label:"SCENE\nKESEL",colorHex:0xFFE53935,icon:"window",action:"obs.setScene",payload:{scene:"SCENE KESEL"}},
+ {id:6,label:"JJ\nSHIKAD",colorHex:0xFF1DE9B6,icon:"window",action:"sound.play",payload:{file:"jj_shikad.mp3"}},
+ {id:7,label:"DUIT",colorHex:0xFF1DE9B6,icon:"window",action:"sound.play",payload:{file:"duit.mp3"}},
+ {id:8,label:"CEPEK",colorHex:0xFF1DE9B6,icon:"window",action:"sound.play",payload:{file:"cepek.mp3"}},
+ {id:9,label:"LOVE\nORANGE",colorHex:0xFF1DE9B6,icon:"window",action:"sound.play",payload:{file:"love_orange.mp3"}},
+ {id:10,label:"DUAR",colorHex:0xFF1DE9B6,icon:"window",action:"sound.play",payload:{file:"duar.mp3"}},
+ {id:11,label:"KETAWA",colorHex:0xFF2962FF,icon:"play",action:"sound.play",payload:{file:"ketawa.mp3"}},
+ {id:12,label:"tegang",colorHex:0xFF2962FF,icon:"play",action:"sound.play",payload:{file:"tegang.mp3"}},
+ {id:13,label:"chuaks",colorHex:0xFF2962FF,icon:"play",action:"sound.play",payload:{file:"chuaks.mp3"}},
+ {id:14,label:"akh",colorHex:0xFF2962FF,icon:"play",action:"sound.play",payload:{file:"akh.mp3"}},
+];
+const PAGE=15;
+let buttons=JSON.parse(JSON.stringify(DEFAULT));
+let scenes=[],inputs=[],sounds=[],editIdx=null;
+let soundPlaying=false, soundFile=null;
+let curPage=0;
+const grid=document.getElementById('grid');
+const vp=document.getElementById('vp');
+function pageCount(){ return Math.max(1, Math.ceil(buttons.length/PAGE)); }
+function clampPage(){ if(curPage>=pageCount()) curPage=pageCount()-1; if(curPage<0) curPage=0; }
+function renderPager(){
+  const p=document.getElementById('pager'); p.innerHTML='';
+  const pc=pageCount();
+  if(pc<=1) return;
+  const prev=document.createElement('button'); prev.className='pbtn'; prev.textContent='◀'; prev.disabled=curPage===0; prev.onclick=()=>{ curPage--; render(); updateSoundLock(); };
+  p.appendChild(prev);
+  for(let i=0;i<pc;i++){ const d=document.createElement('div'); d.className='dotp'+(i===curPage?' on':''); d.onclick=()=>{ curPage=i; render(); updateSoundLock(); }; p.appendChild(d); }
+  const nxt=document.createElement('button'); nxt.className='pbtn'; nxt.textContent='▶'; nxt.disabled=curPage===pc-1; nxt.onclick=()=>{ curPage++; render(); updateSoundLock(); };
+  p.appendChild(nxt);
+  const lbl=document.createElement('span'); lbl.style.cssText='font-size:10px;color:#888;margin-left:6px'; lbl.textContent=`${curPage+1}/${pc} · ${buttons.length} tombol · swipe`; p.appendChild(lbl);
+}
+let sx=0;
+vp.addEventListener('touchstart',e=>{ sx=e.touches[0].clientX; },{passive:true});
+vp.addEventListener('touchend',e=>{ const dx=e.changedTouches[0].clientX-sx; if(Math.abs(dx)>50){ if(dx<0 && curPage<pageCount()-1){ curPage++; render(); updateSoundLock(); } else if(dx>0 && curPage>0){ curPage--; render(); updateSoundLock(); } } });
+function cssHex(n){ if(typeof n!=="number") return "#2962ff"; const h=n.toString(16).padStart(8,"0"); return "#"+h.slice(2); }
+function parseHex(s){
+  s=String(s).trim();
+  if(s.startsWith("0x")||s.startsWith("0X")){ const v=Number(s); if(!Number.isNaN(v)) return v>>>0; }
+  if(s.startsWith("#")){ s=s.slice(1); if(s.length===6) s="FF"+s; if(s.length===8) return parseInt(s,16)>>>0; }
+  return null;
+}
+function updateSoundLock(){
+  const cards=grid.children;
+  const slice=buttons.slice(curPage*PAGE, curPage*PAGE+PAGE);
+  for(let i=0;i<slice.length&&i<cards.length;i++){
+    const isSound=slice[i].action==='sound.play';
+    cards[i].classList.toggle('disabled', soundPlaying && isSound);
+  }
+  document.getElementById('foot').textContent=soundPlaying?`Memutar ${soundFile||''} — tombol sound terkunci`:`Swipe kiri/kanan ganti halaman · hal ${curPage+1}/${pageCount()} · tahan edit · + Tambah`;
+}
+function render(){
+  clampPage(); grid.innerHTML='';
+  const slice=buttons.slice(curPage*PAGE, curPage*PAGE+PAGE);
+  slice.forEach((b,li)=>{
+    const i=curPage*PAGE+li;
+    const d=document.createElement('div');
+    const locked=soundPlaying && b.action==='sound.play';
+    d.className='card'+(locked?' disabled':''); d.style.background=cssHex(b.colorHex);
+    d.innerHTML=`<span class="ic">${EMOJI[b.icon]||"▦"}</span><span>${b.label.replace(/</g,"&lt;")}</span>`;
+    d.title=`${b.icon} · ${b.action} ${JSON.stringify(b.payload)}${locked?' — terkunci':''}`;
+    let t=null; const sp=()=>t=setTimeout(()=>openEdit(i),600), cp=()=>clearTimeout(t);
+    d.addEventListener('mousedown',sp); d.addEventListener('mouseup',cp); d.addEventListener('mouseleave',cp);
+    d.addEventListener('touchstart',sp,{passive:true}); d.addEventListener('touchend',cp);
+    d.addEventListener('contextmenu',e=>{e.preventDefault();openEdit(i);});
+    d.addEventListener('dblclick',()=>openEdit(i));
+    d.onclick=e=>{ if(e.detail===1) setTimeout(()=>{ if(editIdx===null) send(b.action,b.payload); },200); };
+    grid.appendChild(d);
+  });
+  try{ localStorage.setItem('deck_buttons',JSON.stringify(buttons)); }catch{}
+  renderPager();
+  updateSoundLock();
+}
+function buildChips(cur){
+  const c=document.getElementById('chips'); c.innerHTML='';
+  PRESET.forEach(h=>{
+    const b=document.createElement('div'); b.className='chip'+(cssHex(cur).toLowerCase()===h?' on':''); b.style.background=h; b.onclick=()=>{ document.getElementById('eColor').value=h; b.className='chip on'; [...c.children].forEach(x=>{ if(x!==b) x.classList.remove('on'); }); };
+    c.appendChild(b);
+  });
+}
+async function fetchButtons(){
+  const h=hostVal();
+  try{ const r=await fetch(`http://${h}:9137/buttons`); if(r.ok){ const j=await r.json(); if(Array.isArray(j)&&j.length>=1&&j.length<=30){ buttons=j; render(); return; } } }catch{}
+  try{ const c=localStorage.getItem('deck_buttons'); if(c){ const j=JSON.parse(c); if(Array.isArray(j)&&j.length>=1) buttons=j; } }catch{}
+  render();
+}
+async function postButtons(){
+  try{
+    const r=await fetch(`http://${hostVal()}:9137/buttons`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(buttons)});
+    if(!r.ok) throw new Error((await r.json()).error||await r.text());
+    toast('Tersimpan & sync');
+  }catch(e){ toast('Gagal sync: '+e.message); }
+}
+function fillSelect(id,opts,val){
+  const s=document.getElementById(id); s.innerHTML='';
+  const all=[...new Set([...opts,val?[val]:[]].filter(Boolean))];
+  const list=all.length?all:(val?[val]:[]);
+  list.forEach(o=>{ const op=document.createElement('option'); op.value=o; op.textContent=o; if(o===val) op.selected=true; s.appendChild(op); });
+  if(!s.value&&list[0]) s.value=list[0];
+}
+function fillIcon(val){
+  const s=document.getElementById('eIcon'); s.innerHTML='';
+  ICONS.forEach(ic=>{ const op=document.createElement('option'); op.value=ic; op.textContent=`${EMOJI[ic]} ${ic}`; if(ic===val) op.selected=true; s.appendChild(op); });
+}
+function onActionChange(){
+  const a=document.getElementById('eAction').value;
+  document.getElementById('fScene').style.display=(a==='obs.setScene'||a==='obs.toggleSource')?'':'none';
+  document.getElementById('fInput').style.display=(a==='obs.toggleMute')?'':'none';
+  document.getElementById('fSource').style.display=(a==='obs.toggleSource')?'':'none';
+  document.getElementById('fFile').style.display=(a==='sound.play')?'':'none';
+}
+function openEdit(i){
+  editIdx=i; const b=buttons[i];
+  document.getElementById('dlgTitle').textContent='Edit tombol '+(i+1)+' / '+buttons.length;
+  document.getElementById('eLabel').value=b.label;
+  document.getElementById('eColor').value=cssHex(b.colorHex);
+  buildChips(b.colorHex);
+  fillIcon(b.icon);
+  document.getElementById('eAction').value=b.action;
+  fillSelect('eScene',scenes,b.payload.scene||scenes[0]||'SCENE MAIN');
+  fillSelect('eInput',inputs,b.payload.input||inputs[0]||'Mic/Aux');
+  fillSelect('eSource',[...new Set([...(b.payload.source?[b.payload.source]:[]),'Webcam','Camera'])],b.payload.source||'Webcam');
+  fillSelect('eFile',sounds,b.payload.file||sounds[0]||'');
+  onActionChange();
+  document.getElementById('overlay').classList.add('open');
+}
+function closeEdit(){ document.getElementById('overlay').classList.remove('open'); editIdx=null; }
+async function doUpload(){
+  const inp=document.getElementById('ePick'); const f=inp.files&&inp.files[0]; if(!f) return toast('Pilih file dulu');
+  if(!/\.(mp3|wav|ogg|m4a)$/i.test(f.name)) return toast('Butuh mp3/wav/ogg/m4a');
+  if(f.size>20*1024*1024) return toast('File >20MB');
+  const btn=document.getElementById('upBtn'); btn.disabled=true; document.getElementById('upStat').textContent='Upload '+f.name+'...';
+  try{
+    const r=await fetch(`http://${hostVal()}:9137/upload`,{method:'POST',headers:{'x-filename':f.name},body:f});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||'upload gagal');
+    const name=j.file||f.name;
+    if(!sounds.includes(name)) sounds.push(name);
+    fillSelect('eFile',sounds,name); document.getElementById('eFile').value=name;
+    document.getElementById('upStat').textContent='OK '+name+' — akan bunyi di speaker PC';
+    toast('Upload OK '+name);
+  }catch(e){ document.getElementById('upStat').textContent='Gagal: '+e.message; toast('Upload gagal '+e.message); }
+  finally{ btn.disabled=false; }
+}
+function saveEdit(){
+  if(editIdx===null) return;
+  const label=document.getElementById('eLabel').value.trim();
+  if(!label) return toast('Nama tidak boleh kosong');
+  const hex=parseHex(document.getElementById('eColor').value);
+  if(hex===null) return toast('Warna hex tidak valid (#RRGGBB)');
+  const icon=document.getElementById('eIcon').value;
+  const a=document.getElementById('eAction').value;
+  const payload={};
+  if(a==='obs.setScene') payload.scene=document.getElementById('eScene').value;
+  else if(a==='obs.toggleMute') payload.input=document.getElementById('eInput').value;
+  else if(a==='obs.toggleSource'){ payload.scene=document.getElementById('eScene').value; payload.source=document.getElementById('eSource').value; }
+  else if(a==='sound.play') payload.file=document.getElementById('eFile').value;
+  buttons[editIdx]={...buttons[editIdx],label,colorHex:hex,icon,action:a,payload};
+  render(); postButtons(); closeEdit();
+}
+function deleteBtn(){
+  if(editIdx===null) return;
+  if(buttons.length<=1) return toast('Minimal 1 tombol');
+  if(!confirm('Hapus tombol '+(editIdx+1)+' "'+buttons[editIdx].label.replace(/\n/g,' ')+'"?')) return;
+  buttons.splice(editIdx,1); clampPage(); render(); postButtons(); closeEdit();
+}
+function addBtn(){
+  if(buttons.length>=30) return toast('Max 30 tombol');
+  const nid=Math.max(...buttons.map(b=>b.id),-1)+1;
+  buttons.push({id:nid,label:"Baru",colorHex:0xFF2962FF,icon:"grid",action:"obs.setScene",payload:{scene:scenes[0]||"SCENE MAIN"}});
+  curPage=pageCount()-1; render(); postButtons(); openEdit(buttons.length-1);
+}
+async function resetDeck(){ if(!confirm('Reset ke 15 default?')) return; buttons=JSON.parse(JSON.stringify(DEFAULT)); render(); await postButtons(); toast('Reset default'); }
+let ws=null;
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',1800)}
+function setState(c,o){ const d=document.getElementById('dot'),s=document.getElementById('status'); d.className='dot'+(o?' on':''); s.textContent=o?'OBS terhubung':c?'Companion OK - OBS off':'Tidak terhubung'; }
+function hostVal(){return document.getElementById('host').value.trim()||'localhost'}
+function connect(){
+  if(ws)try{ws.close()}catch{}
+  ws=new WebSocket('ws://'+hostVal()+':9137');
+  ws.onopen=()=>{setState(true,false);toast('WS terhubung'); ws.send(JSON.stringify({action:'obs.list'})); ws.send(JSON.stringify({action:'sounds.list'}));};
+  ws.onclose=()=>setState(false,false); ws.onerror=()=>setState(false,false);
+  ws.onmessage=e=>{
+    try{
+      const j=JSON.parse(e.data);
+      if(j.type==='obs.state')setState(true,!!j.payload?.connected);
+      else if(j.type==='obs.list'){ scenes=j.payload?.scenes||[]; inputs=(j.payload?.inputs||[]).map(x=>x.name||x); }
+      else if(j.type==='sounds.list'){ const p=j.payload; sounds=Array.isArray(p)?p.map(x=>x.file||x):[]; }
+      else if(j.type==='sound.state'){ soundPlaying=!!j.payload?.playing; soundFile=j.payload?.file||null; updateSoundLock(); }
+      else if(j.type==='deck.buttons'&&Array.isArray(j.payload)&&j.payload.length>=1){ buttons=j.payload; render(); updateSoundLock(); toast('Sync dari server'); }
+      else if(j.type==='ok')toast('OK '+j.action);
+      else if(j.type==='error')toast('Error: '+(j.message||''));
+    }catch{}
+  };
+}
+function send(a,p){ if(!ws||ws.readyState!==1) return toast('WS belum konek'); if(soundPlaying && a==='sound.play'){ toast('Tunggu — sedang memutar '+ (soundFile||'')); return; } ws.send(JSON.stringify({action:a,payload:p})); }
+function reconnect(){ fetchButtons(); connect(); }
+function refresh(){ fetchButtons(); if(ws&&ws.readyState===1){ ws.send(JSON.stringify({action:'obs.list'})); ws.send(JSON.stringify({action:'sounds.list'})); toast('Refresh'); } }
+fetchButtons(); connect();
+</script>

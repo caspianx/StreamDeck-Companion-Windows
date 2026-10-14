@@ -1,0 +1,9 @@
+{
+  "companionPort": 9137,
+  "obs": {
+    "host": "localhost",
+    "port": 4455,
+    "password": "admin123"
+  },
+  "soundsDir": "./sounds"   
+}
