@@ -1,11 +1,8 @@
 android/
-pc-companion/node_modules/
-pc-companion/buttons.json
 pc-companion/sounds/*.mp3
 pc-companion/sounds/*.wav
 pc-companion/sounds/*.ogg
 pc-companion/sounds/*.m4a
-!pc-companion/sounds/.keep
 android/.gradle/
 android/app/build/
 android/build/
@@ -13,6 +10,5 @@ android/*.iml
 android/local.properties
 dist/
 *.log
-companion.log
 .DS_Store
 .idea/

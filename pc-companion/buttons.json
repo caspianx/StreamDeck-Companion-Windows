@@ -1,0 +1,168 @@
+[
+  {
+    "id": 0,
+    "label": "SCENEMAIN",
+    "colorHex": 4279901230,
+    "icon": "window",
+    "action": "obs.setScene",
+    "payload": {
+      "scene": "Scene 3"
+    },
+    "image": null
+  },
+  {
+    "id": 1,
+    "label": "SCENEEND",
+    "colorHex": 4293212469,
+    "icon": "window",
+    "action": "obs.setScene",
+    "payload": {
+      "scene": "Scene 2"
+    },
+    "image": null
+  },
+  {
+    "id": 2,
+    "label": "SCENE\nSEDIH",
+    "colorHex": 4293212469,
+    "icon": "window",
+    "action": "obs.setScene",
+    "payload": {
+      "scene": "SCENE SEDIH"
+    },
+    "image": null
+  },
+  {
+    "id": 3,
+    "label": "MUTE\nMIC",
+    "colorHex": 4293212469,
+    "icon": "mic_off",
+    "action": "obs.toggleMute",
+    "payload": {
+      "input": "Mic/Aux"
+    },
+    "image": null
+  },
+  {
+    "id": 4,
+    "label": "Webcam",
+    "colorHex": 4293212469,
+    "icon": "cam_off",
+    "action": "obs.toggleSource",
+    "payload": {
+      "scene": "SCENE MAIN",
+      "source": "Webcam"
+    },
+    "image": null
+  },
+  {
+    "id": 5,
+    "label": "SCENE\nKESEL",
+    "colorHex": 4293212469,
+    "icon": "window",
+    "action": "obs.setScene",
+    "payload": {
+      "scene": "SCENE KESEL"
+    },
+    "image": null
+  },
+  {
+    "id": 6,
+    "label": "JJSHIKAD",
+    "colorHex": 4280150454,
+    "icon": "window",
+    "action": "sound.play",
+    "payload": {
+      "file": "i-have-no-enemy.mp3"
+    },
+    "image": null
+  },
+  {
+    "id": 7,
+    "label": "DUIT",
+    "colorHex": 4280150454,
+    "icon": "window",
+    "action": "sound.play",
+    "payload": {
+      "file": "fua.mp3"
+    },
+    "image": null
+  },
+  {
+    "id": 8,
+    "label": "CEPEK",
+    "colorHex": 4280150454,
+    "icon": "window",
+    "action": "sound.play",
+    "payload": {
+      "file": "cepek.mp3"
+    },
+    "image": null
+  },
+  {
+    "id": 9,
+    "label": "LOVE\nORANGE",
+    "colorHex": 4280150454,
+    "icon": "window",
+    "action": "sound.play",
+    "payload": {
+      "file": "love_orange.mp3"
+    },
+    "image": null
+  },
+  {
+    "id": 10,
+    "label": "DUAR",
+    "colorHex": 4280150454,
+    "icon": "window",
+    "action": "sound.play",
+    "payload": {
+      "file": "duar.mp3"
+    },
+    "image": null
+  },
+  {
+    "id": 11,
+    "label": "KETAWA",
+    "colorHex": 4280902399,
+    "icon": "play",
+    "action": "sound.play",
+    "payload": {
+      "file": "ketawa.mp3"
+    },
+    "image": null
+  },
+  {
+    "id": 12,
+    "label": "tegang",
+    "colorHex": 4280902399,
+    "icon": "play",
+    "action": "sound.play",
+    "payload": {
+      "file": "i-have-no-enemy.mp3"
+    },
+    "image": null
+  },
+  {
+    "id": 13,
+    "label": "chuaks",
+    "colorHex": 4280902399,
+    "icon": "play",
+    "action": "sound.play",
+    "payload": {
+      "file": "chuaks.mp3"
+    },
+    "image": null
+  },
+  {
+    "id": 14,
+    "label": "akh",
+    "colorHex": 4293212469,
+    "icon": "play",
+    "action": "sound.play",
+    "payload": {
+      "file": "akh.mp3"
+    },
+    "image": null
+  }
+]
