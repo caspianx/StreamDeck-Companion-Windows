@@ -3,7 +3,7 @@
 Companion PC untuk StreamDeck Android (OBS + soundboard). Tanpa `npm install` — download ZIP, klik jalan.
 
 ## Download (tanpa coding)
-1. Buka https://github.com/caspianx/StreamDeck-Companion-Windows/releases → download `StreamDeck-Companion-Windows.zip`
+1. Buka https://github.com/caspianx/StreamDeck-Companion-Windows → download `StreamDeck-Companion-Windows.zip` (Releases)
 2. Extract → double-klik `start-companion.bat` (biarkan jalan)
 3. OBS Studio → Tools → WebSocket Server → Enable 4455 + password `admin123` (atau edit `pc-companion/config.json`)
 4. Cek `http://localhost:9137/preview` — grid 5×3 swipe 2 halaman, upload mp3, play bunyi di PC
