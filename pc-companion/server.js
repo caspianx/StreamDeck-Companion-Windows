@@ -1,13 +1,16 @@
 import fs from "fs";
 import path from "path";
 import http from "http";
+import { exec } from "child_process";
 import { fileURLToPath } from "url";
 import { WebSocketServer } from "ws";
 import { createObs } from "./obs.js";
 import { createSound } from "./sound.js";
 
 const CONFIG_PATH = new URL("./config.json", import.meta.url);
+const APPS_PATH = new URL("./apps.json", import.meta.url);
 const cfg = JSON.parse(fs.readFileSync(CONFIG_PATH));
+const apps = JSON.parse(fs.readFileSync(APPS_PATH));
 const sound = createSound(cfg);
 const IMAGES_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "images");
 if (!fs.existsSync(IMAGES_DIR)) fs.mkdirSync(IMAGES_DIR, { recursive: true });
@@ -54,14 +57,20 @@ const obs = createObs(cfg.obs, (ok, err) => {
   broadcast({ type: "obs.list", payload: list });
 });
 
+
 const server = http.createServer((req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-filename");
   if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
-  if (req.url === "/images" && req.method === "GET") {
+  if (req.url === "/apps" && req.method === "GET") {
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify(listImages()));
+    try {
+      const appsData = JSON.parse(fs.readFileSync(APPS_PATH, "utf8"));
+      res.end(JSON.stringify(appsData));
+    } catch {
+      res.end(JSON.stringify({}));
+    }
     return;
   }
   if (req.url.startsWith("/image/") && req.method === "GET") {
@@ -230,6 +239,10 @@ wss.on("connection", async ws => {
   ws.send(JSON.stringify({ type: "deck.buttons", payload: loadButtons() }));
   ws.send(JSON.stringify({ type: "sound.state", payload: { playing: sound.isPlaying(), file: sound.curFile() } }));
   try {
+    const appsData = JSON.parse(fs.readFileSync(APPS_PATH, "utf8"));
+    ws.send(JSON.stringify({ type: "apps.list", payload: appsData }));
+  } catch {}
+  try {
     if (lastObsList) ws.send(JSON.stringify({ type: "obs.list", payload: lastObsList }));
     else if (obs.isConnected()) { const r = await obs.list(); lastObsList = r; ws.send(JSON.stringify({ type: "obs.list", payload: r })); }
   } catch {}
@@ -248,6 +261,50 @@ wss.on("connection", async ws => {
       }
       else if (action === "obs.list") { const r = await obs.list(); ws.send(JSON.stringify({ type: "obs.list", payload: r })); }
       else if (action === "sounds.list") { ws.send(JSON.stringify({ type: "sounds.list", payload: sound.list() })); }
+      else if (action === "apps.list") {
+        try {
+          const appsData = JSON.parse(fs.readFileSync(APPS_PATH, "utf8"));
+          ws.send(JSON.stringify({ type: "apps.list", payload: appsData }));
+        } catch {}
+      }
+      else if (action === "system.openApp") {
+        const appPath = payload.path;
+        if (appPath) {
+          exec(`"${appPath}"`, (err) => {
+            if (err) console.error("Failed to run app:", err);
+          });
+          ws.send(JSON.stringify({ type: "ok", action }));
+        }
+      }
+      else if (action === "system.volume") {
+        try {
+          const loudness = await import("loudness");
+          if (payload.type === "up") {
+            const vol = await loudness.getVolume();
+            await loudness.setVolume(Math.min(100, vol + 5));
+          } else if (payload.type === "down") {
+            const vol = await loudness.getVolume();
+            await loudness.setVolume(Math.max(0, vol - 5));
+          } else if (payload.type === "mute") {
+            const muted = await loudness.getMuted();
+            await loudness.setMuted(!muted);
+          }
+          ws.send(JSON.stringify({ type: "ok", action }));
+        } catch (e) {
+          ws.send(JSON.stringify({ type: "error", action, message: e.message }));
+        }
+      }
+      else if (action === "system.media") {
+        try {
+          const robot = await import("robotjs");
+          if (payload.type === "play_pause") robot.keyTap("audio_play");
+          else if (payload.type === "next") robot.keyTap("audio_next");
+          else if (payload.type === "prev") robot.keyTap("audio_prev");
+          ws.send(JSON.stringify({ type: "ok", action }));
+        } catch (e) {
+          ws.send(JSON.stringify({ type: "error", action, message: e.message }));
+        }
+      }
       else ws.send(JSON.stringify({ type: "error", message: "unknown action " + action }));
     } catch (e) {
       ws.send(JSON.stringify({ type: "error", action, message: e.message }));
