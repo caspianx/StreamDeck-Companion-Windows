@@ -270,13 +270,13 @@ wss.on("connection", async ws => {
       }
       else if (action === "system.volume") {
         const type = payload.type;
-        const psCmd = if (type === "up") "175" else if (type === "down") "174" else "173";
+        const psCmd = (type === "up") ? "175" : (type === "down") ? "174" : "173";
         exec(`powershell -command "$wscript = New-Object -ComObject WScript.Shell; $wscript.SendKeys([char]${psCmd})"`);
         ws.send(JSON.stringify({ type: "ok", action }));
       }
       else if (action === "system.media") {
         const type = payload.type;
-        const psCmd = if (type === "play_pause") "179" else if (type === "next") "176" else "177";
+        const psCmd = (type === "play_pause") ? "179" : (type === "next") ? "176" : "177";
         exec(`powershell -command "$wscript = New-Object -ComObject WScript.Shell; $wscript.SendKeys([char]${psCmd})"`);
         ws.send(JSON.stringify({ type: "ok", action }));
       }
