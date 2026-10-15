@@ -14,6 +14,34 @@ const apps = JSON.parse(fs.readFileSync(APPS_PATH));
 const sound = createSound(cfg);
 const IMAGES_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "images");
 if (!fs.existsSync(IMAGES_DIR)) fs.mkdirSync(IMAGES_DIR, { recursive: true });
+
+function scanApps() {
+  const folders = ["C:\\Program Files", "C:\\Program Files (x86)"];
+  const apps = {};
+  for (const folder of folders) {
+    if (!fs.existsSync(folder)) continue;
+    try {
+      const dirs = fs.readdirSync(folder, { withFileTypes: true });
+      for (const dir of dirs) {
+        if (dir.isDirectory()) {
+          const fullPath = path.join(folder, dir.name);
+          try {
+            const files = fs.readdirSync(fullPath);
+            for (const file of files) {
+              if (file.toLowerCase().endsWith(".exe")) {
+                apps[dir.name] = path.join(fullPath, file);
+                break;
+              }
+            }
+          } catch {}
+        }
+      }
+    } catch {}
+  }
+  fs.writeFileSync(APPS_PATH, JSON.stringify(apps, null, 2));
+  return apps;
+}
+
 function listImages(){
   return fs.readdirSync(IMAGES_DIR)
     .filter(f => /\.(png|jpe?g|webp)$/i.test(f))
@@ -63,13 +91,25 @@ const server = http.createServer((req, res) => {
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-filename");
   if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
-  if (req.url === "/apps" && req.method === "GET") {
+   if (req.url === "/apps" && req.method === "GET") {
     res.writeHead(200, { "Content-Type": "application/json" });
     try {
       const appsData = JSON.parse(fs.readFileSync(APPS_PATH, "utf8"));
       res.end(JSON.stringify(appsData));
     } catch {
       res.end(JSON.stringify({}));
+    }
+    return;
+  }
+  if (req.url === "/apps/scan" && req.method === "POST") {
+    try {
+      const scanned = scanApps();
+      broadcast({ type: "apps.list", payload: scanned });
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true, apps: scanned }));
+    } catch (e) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: e.message }));
     }
     return;
   }
