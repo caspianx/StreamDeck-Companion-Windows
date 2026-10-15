@@ -48,34 +48,6 @@ function scanApps() {
 const IMAGES_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "images");
 if (!fs.existsSync(IMAGES_DIR)) fs.mkdirSync(IMAGES_DIR, { recursive: true });
 
-function scanApps() {
-  const folders = ["C:\\Program Files", "C:\\Program Files (x86)"];
-  const scanned = {};
-  for (const folder of folders) {
-    if (!fs.existsSync(folder)) continue;
-    try {
-      const dirs = fs.readdirSync(folder, { withFileTypes: true });
-      for (const dir of dirs) {
-        if (dir.isDirectory()) {
-          const fullPath = path.join(folder, dir.name);
-          try {
-            const files = fs.readdirSync(fullPath);
-            for (const file of files) {
-              if (file.toLowerCase().endsWith(".exe")) {
-                scanned[dir.name] = path.join(fullPath, file);
-                break;
-              }
-            }
-          } catch {}
-        }
-      }
-    } catch {}
-  }
-  const current = JSON.parse(fs.readFileSync(APPS_PATH, "utf8"));
-  current.scanned = scanned;
-  fs.writeFileSync(APPS_PATH, JSON.stringify(current, null, 2));
-  return current;
-}
 
 function listImages(){
   return fs.readdirSync(IMAGES_DIR)
