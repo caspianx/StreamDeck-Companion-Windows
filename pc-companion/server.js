@@ -289,45 +289,25 @@ wss.on("connection", async ws => {
       else if (action === "system.openApp") {
         const appPath = payload.path;
         if (appPath) {
-          console.log("[system] executing:", appPath);
-          exec(`start "" "${appPath}"`, (err, stdout, stderr) => {
-            if (err) {
-              console.error("[system] Failed to run app:", err);
-              ws.send(JSON.stringify({ type: "error", action, message: err.message }));
-            } else {
-              ws.send(JSON.stringify({ type: "ok", action }));
-            }
+          exec(`start "" "${appPath}"`, (err) => {
+            if (err) ws.send(JSON.stringify({ type: "error", action, message: err.message }));
+            else ws.send(JSON.stringify({ type: "ok", action }));
           });
         }
       }
       else if (action === "system.volume") {
-        try {
-          const loudness = await import("loudness");
-          if (payload.type === "up") {
-            const vol = await loudness.getVolume();
-            await loudness.setVolume(Math.min(100, vol + 5));
-          } else if (payload.type === "down") {
-            const vol = await loudness.getVolume();
-            await loudness.setVolume(Math.max(0, vol - 5));
-          } else if (payload.type === "mute") {
-            const muted = await loudness.getMuted();
-            await loudness.setMuted(!muted);
-          }
-          ws.send(JSON.stringify({ type: "ok", action }));
-        } catch (e) {
-          ws.send(JSON.stringify({ type: "error", action, message: e.message }));
-        }
+        const type = payload.type;
+        if (type === "up") exec(`powershell -command "$wscript = New-Object -ComObject WScript.Shell; $wscript.SendKeys([char]175)"`);
+        else if (type === "down") exec(`powershell -command "$wscript = New-Object -ComObject WScript.Shell; $wscript.SendKeys([char]174)"`);
+        else if (type === "mute") exec(`powershell -command "$wscript = New-Object -ComObject WScript.Shell; $wscript.SendKeys([char]173)"`);
+        ws.send(JSON.stringify({ type: "ok", action }));
       }
       else if (action === "system.media") {
-        try {
-          const robot = await import("robotjs");
-          if (payload.type === "play_pause") robot.keyTap("audio_play");
-          else if (payload.type === "next") robot.keyTap("audio_next");
-          else if (payload.type === "prev") robot.keyTap("audio_prev");
-          ws.send(JSON.stringify({ type: "ok", action }));
-        } catch (e) {
-          ws.send(JSON.stringify({ type: "error", action, message: e.message }));
-        }
+        const type = payload.type;
+        if (type === "play_pause") exec(`powershell -command "$wscript = New-Object -ComObject WScript.Shell; $wscript.SendKeys([char]179)"`);
+        else if (type === "next") exec(`powershell -command "$wscript = New-Object -ComObject WScript.Shell; $wscript.SendKeys([char]176)"`);
+        else if (type === "prev") exec(`powershell -command "$wscript = New-Object -ComObject WScript.Shell; $wscript.SendKeys([char]177)"`);
+        ws.send(JSON.stringify({ type: "ok", action }));
       }
       else ws.send(JSON.stringify({ type: "error", message: "unknown action " + action }));
     } catch (e) {
