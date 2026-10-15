@@ -270,10 +270,15 @@ wss.on("connection", async ws => {
       else if (action === "system.openApp") {
         const appPath = payload.path;
         if (appPath) {
-          exec(`"${appPath}"`, (err) => {
-            if (err) console.error("Failed to run app:", err);
+          console.log("[system] executing:", appPath);
+          exec(`start "" "${appPath}"`, (err, stdout, stderr) => {
+            if (err) {
+              console.error("[system] Failed to run app:", err);
+              ws.send(JSON.stringify({ type: "error", action, message: err.message }));
+            } else {
+              ws.send(JSON.stringify({ type: "ok", action }));
+            }
           });
-          ws.send(JSON.stringify({ type: "ok", action }));
         }
       }
       else if (action === "system.volume") {
