@@ -259,8 +259,27 @@ wss.on("connection", async ws => {
         try { await sound.play(payload.file); ws.send(JSON.stringify({ type: "ok", action })); }
         finally { broadcast({ type: "sound.state", payload: { playing: false, file: null } }); }
       }
-      else if (action === "obs.list") { const r = await obs.list(); ws.send(JSON.stringify({ type: "obs.list", payload: r })); }
-      else if (action === "sounds.list") { ws.send(JSON.stringify({ type: "sounds.list", payload: sound.list() })); }
+      else if (action === "system.openApp") {
+        const appPath = payload.path;
+        if (appPath) {
+          exec(`start "" "${appPath.replace(/"/g, '\\"')}"`, (err) => {
+            if (err) ws.send(JSON.stringify({ type: "error", action, message: err.message }));
+            else ws.send(JSON.stringify({ type: "ok", action }));
+          });
+        }
+      }
+      else if (action === "system.volume") {
+        const type = payload.type;
+        const psCmd = if (type === "up") "175" else if (type === "down") "174" else "173";
+        exec(`powershell -command "$wscript = New-Object -ComObject WScript.Shell; $wscript.SendKeys([char]${psCmd})"`);
+        ws.send(JSON.stringify({ type: "ok", action }));
+      }
+      else if (action === "system.media") {
+        const type = payload.type;
+        const psCmd = if (type === "play_pause") "179" else if (type === "next") "176" else "177";
+        exec(`powershell -command "$wscript = New-Object -ComObject WScript.Shell; $wscript.SendKeys([char]${psCmd})"`);
+        ws.send(JSON.stringify({ type: "ok", action }));
+      }
       else if (action === "apps.list") {
         try {
           const appsData = JSON.parse(fs.readFileSync(APPS_PATH, "utf8"));
