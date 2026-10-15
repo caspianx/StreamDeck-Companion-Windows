@@ -365,4 +365,5 @@ wss.on("connection", async ws => {
 
 server.listen(cfg.companionPort, "0.0.0.0", () => {
   console.log(`[companion] http+ws on 0.0.0.0:${cfg.companionPort}  sounds ${sound.dir}  obs ${cfg.obs.host}:${cfg.obs.port} -> ${obsState.connected ? "connected" : "waiting"}`);
+  exec(`start http://localhost:${cfg.companionPort}/preview`);
 });
