@@ -5,5 +5,5 @@
     "port": 4455,
     "password": "admin123"
   },
-  "soundsDir": "./sounds"   
+  "soundsDir": "./sounds"
 }

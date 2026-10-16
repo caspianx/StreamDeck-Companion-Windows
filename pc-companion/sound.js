@@ -18,9 +18,19 @@ export function createSound(cfg) {
         .map(f => ({ file: f, path: path.join(dir, f) }));
     },
     play(file) {
+      if (!file) throw new Error("Nama file audio kosong");
       if (playing) throw new Error("sedang memutar");
-      const p = path.resolve(dir, file);
-      if (!fs.existsSync(p)) throw new Error(`Not found: ${file}`);
+      let p = path.resolve(dir, file);
+      if (!fs.existsSync(p)) {
+        try {
+          const list = fs.readdirSync(dir);
+          const match = list.find(f => f.toLowerCase() === file.toLowerCase() || path.parse(f).name.toLowerCase() === file.toLowerCase());
+          if (match) p = path.resolve(dir, match);
+          else throw new Error(`File audio '${file}' tidak ditemukan di folder sounds PC`);
+        } catch (e) {
+          throw new Error(`File audio '${file}' tidak ditemukan di folder sounds PC (${e.message})`);
+        }
+      }
       playing = true; curFile = file;
       return player.play(p).finally(() => { playing = false; curFile = null; });
     }
