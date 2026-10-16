@@ -6,9 +6,7 @@
     "start": "node server.js"
   },
   "dependencies": {
-    "loudness": "^0.4.2",
     "obs-websocket-js": "^5.0.6",
-    "robotjs": "^0.9.1",
     "sound-play": "^1.1.0",
     "ws": "^8.18.0"
   }
