@@ -19,8 +19,7 @@ if (-not (Test-Path $NodeExe)) {
   try { Invoke-WebRequest -Uri $NodeUrl -OutFile $NodeExe -UseBasicParsing } catch { Write-Host "download fail $_ -> skip, zip will use system node"; Remove-Item $NodeExe -Force -ErrorAction SilentlyContinue }
 }
 Write-Host "[build] copy pc-companion"
-Copy-Item "$PSScriptRoot\server.js","$PSScriptRoot\obs.js","$PSScriptRoot\sound.js","$PSScriptRoot\config.json","$PSScriptRoot\preview.html","$PSScriptRoot\package.json" -Destination "$Dist\pc-companion\" -Force
-if (Test-Path "$PSScriptRoot\buttons.json") { Copy-Item "$PSScriptRoot\buttons.json" "$Dist\pc-companion\" -Force }
+Copy-Item "$PSScriptRoot\server.js","$PSScriptRoot\obs.js","$PSScriptRoot\sound.js","$PSScriptRoot\config.json","$PSScriptRoot\package.json" -Destination "$Dist\pc-companion\" -Force
 Copy-Item "$PSScriptRoot\node_modules" "$Dist\pc-companion\node_modules" -Recurse -Force -ErrorAction SilentlyContinue
 if (Test-Path "$PSScriptRoot\sounds\*") { Copy-Item "$PSScriptRoot\sounds\*" "$Dist\pc-companion\sounds\" -Force -ErrorAction SilentlyContinue } else { "" | Out-File "$Dist\pc-companion\sounds\.keep" }
 if (Test-Path "$PSScriptRoot\images\*") { Copy-Item "$PSScriptRoot\images\*" "$Dist\pc-companion\images\" -Force -ErrorAction SilentlyContinue } else { "" | Out-File "$Dist\pc-companion\images\.keep" }
