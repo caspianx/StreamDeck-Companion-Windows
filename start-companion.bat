@@ -11,7 +11,7 @@ if exist "%~dp0node.exe" (
 where node >nul 2>nul
 if %errorlevel% neq 0 (
   echo ERROR: Node.js tidak ketemu.
-  echo Solusi: download ZIP dari Releases (bawa node.exe portable), bukan Code - Download ZIP.
+  echo Solusi: download ZIP dari Releases ^(bawa node.exe portable^), bukan Code - Download ZIP.
   echo Link: https://github.com/caspianx/StreamDeck-Companion-Windows/releases
   pause
   exit /b 1
