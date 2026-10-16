@@ -13,4 +13,4 @@ dist/
 .DS_Store
 .idea/
 pc-companion/server.js.new
-pc-companion/node_modules/.robotjs-Q4NtD8OK/
+pc-companion/node_modules/
