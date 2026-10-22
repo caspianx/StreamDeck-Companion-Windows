@@ -9,7 +9,7 @@ Companion PC untuk StreamDeck Android (OBS + soundboard + kontrol Windows). Tanp
 | Yang diunduh | Isi | Perlu Node.js di PC? |
 |---|---|---|
 | **Releases** → `StreamDeck-Companion-Windows.zip` | `node.exe` + `node_modules` + server | **Tidak** |
-| **Code → Download ZIP** | source saja (tanpa `node.exe`, tanpa `node_modules`) | **Ya** |
+| **Code → Download ZIP** | source + `node_modules` (tanpa `node.exe`) | **Ya** — cukup install Node.js, **tanpa `npm install`** |
 
 1. Buka https://github.com/caspianx/StreamDeck-Companion-Windows → tab **Releases** → download `StreamDeck-Companion-Windows.zip`
    - Releases kosong? Belum ada ZIP yang di-publish. Bikin sendiri di PC yang ada Node.js: `./pc-companion/build-portable.ps1` (lihat "Build ZIP portable sendiri").
