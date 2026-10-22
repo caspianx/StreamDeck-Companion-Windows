@@ -229,7 +229,7 @@ const server = http.createServer((req, res) => {
         const updated = await obs.setConfig({
           host: body.host || cfg.obs.host,
           port: Number(body.port) || cfg.obs.port,
-          password: body.password !== undefined ? body.password : cfg.obs.password
+          password: (body.password !== undefined && body.password !== "") ? body.password : cfg.obs.password
         });
         cfg.obs = updated;
         try { fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2)); } catch {}
@@ -268,7 +268,7 @@ wss.on("connection", async ws => {
         const updated = await obs.setConfig({
           host: payload.host || cfg.obs.host,
           port: Number(payload.port) || cfg.obs.port,
-          password: payload.password !== undefined ? payload.password : cfg.obs.password
+          password: (payload.password !== undefined && payload.password !== "") ? payload.password : cfg.obs.password
         });
         cfg.obs = updated;
         try { fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2)); } catch {}
@@ -309,6 +309,9 @@ wss.on("connection", async ws => {
         appsCache.data = null; // force refresh
         const apps = getApps();
         ws.send(JSON.stringify({ type: "apps.list", payload: apps }));
+      }
+      else if (action === "apps.list") {
+        ws.send(JSON.stringify({ type: "apps.list", payload: appsCache.data || {} }));
       }
       else ws.send(JSON.stringify({ type: "error", message: "unknown action " + action }));
     } catch (e) {
