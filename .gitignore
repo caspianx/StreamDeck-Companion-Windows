@@ -1,9 +1,9 @@
+android/
 pc-companion/sounds/*.mp3
 pc-companion/sounds/*.wav
 pc-companion/sounds/*.ogg
 pc-companion/sounds/*.m4a
 android/.gradle/
-android/.kotlin/
 android/app/build/
 android/build/
 android/*.iml
